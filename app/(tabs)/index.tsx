@@ -9,7 +9,7 @@ export default function Index() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.headerContainer}>
-        <Header title="QR Attendance" />
+        <Header title="M.Y QR Attendance" />
       </View>
 
       <View style={styles.bodyContainer}>

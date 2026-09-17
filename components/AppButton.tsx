@@ -8,9 +8,10 @@ type Props = {
   icon: keyof typeof Ionicons.glyphMap;
   theme?: 'primary';
   onPress: () => void;
+  disabled?: boolean;
 };
 
-export default function AppButton({ title, icon, theme, onPress }: Props) {
+export default function AppButton({ title, icon, theme, onPress, disabled = false }: Props) {
   if (theme === 'primary') {
     return (
       <View
@@ -22,6 +23,7 @@ export default function AppButton({ title, icon, theme, onPress }: Props) {
         <Pressable
           style={[styles.buttonInner, { backgroundColor: COLORS.primary }]}
           onPress={onPress}
+          disabled={disabled}
         >
           <Ionicons
             name={icon}
@@ -39,7 +41,7 @@ export default function AppButton({ title, icon, theme, onPress }: Props) {
 
   return (
     <View style={styles.buttonOuter}>
-      <Pressable style={styles.buttonInner} onPress={onPress}>
+      <Pressable style={styles.buttonInner} onPress={onPress} disabled={disabled}>
         <Ionicons
           name={icon}
           size={22}
