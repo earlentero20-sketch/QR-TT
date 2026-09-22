@@ -2,7 +2,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import DateTimePicker, {
   type DateTimePickerEvent,
 } from '@react-native-community/datetimepicker';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Platform,
   Pressable,
@@ -16,7 +16,10 @@ import QRCode from 'react-native-qrcode-svg';
 
 import AppButton from '@/components/AppButton';
 import { COLORS } from '@/constants/colors';
-import { createEvent } from '@/lib/database';
+import { useAuth } from '@/lib/auth';
+import { buildQRPayload } from '@/lib/qr';
+import { createEvent } from '@/lib/events';
+import { getProfile, isTeacherRole, normalizeRole } from '@/lib/profiles';
 
 function toLocalISO(date: Date) {
   const pad = (n: number) => String(n).padStart(2, '0');
@@ -43,6 +46,8 @@ const QUICK_END_OPTIONS = [
 type EditTarget = 'start' | 'end';
 
 export default function TeacherScreen() {
+  const { user } = useAuth();
+  const [role, setRole] = useState<string | null>(null);
   const [title, setTitle] = useState('');
   const [eventId, setEventId] = useState('');
   const [startDate, setStartDate] = useState(() => new Date());
@@ -54,7 +59,33 @@ export default function TeacherScreen() {
   const [payload, setPayload] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (!user?.id) {
+      setRole(null);
+      return;
+    }
+
+    getProfile(user.id).then((profile) => {
+      setRole(normalizeRole(profile?.role));
+    });
+  }, [user?.id]);
+
   const isAndroid = Platform.OS === 'android';
+
+  if (role === null) {
+    return <View style={styles.container} />;
+  }
+
+  if (!isTeacherRole(role)) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.title}>Teachers Only</Text>
+        <Text style={styles.subtitle}>
+          This area is restricted to teacher accounts. Sign in with a teacher profile to create QR events.
+        </Text>
+      </View>
+    );
+  }
 
   const openPicker = (target: EditTarget) => {
     setMessage(null);
@@ -115,9 +146,8 @@ export default function TeacherScreen() {
     createEvent(event).then(() => {
       setMessage('Event saved! Scan the QR with the Scan tab to test it.');
       setPayload(
-        JSON.stringify({
-          v: 1,
-          event: event.eventId,
+        buildQRPayload({
+          eventId: event.eventId,
           title: event.title,
           start: event.start,
           end: event.end,

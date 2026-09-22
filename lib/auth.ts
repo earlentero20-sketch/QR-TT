@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
+import * as Linking from 'expo-linking';
 import { supabase } from './supabase';
 import type { Session, User } from '@supabase/supabase-js';
+
+export type UserRole = 'student' | 'teacher';
 
 type AuthState = {
     session: Session | null;
@@ -40,8 +43,24 @@ export function useAuth(): AuthState {
     };
 }
 
-export async function signUp(email: string, password: string) {
-    const { data, error } = await supabase.auth.signUp({ email, password });
+export async function signUp(
+    email: string,
+    password: string,
+    fullName?: string,
+    role: UserRole = 'student'
+) {
+    const redirectTo = Linking.createURL('/login');
+    const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+            emailRedirectTo: redirectTo,
+            data: {
+                full_name: fullName?.trim() || null,
+                role,
+            },
+        },
+    });
     if (!error && data.session) {
         setAuth(data.session);
     }

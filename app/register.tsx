@@ -10,6 +10,7 @@ import {
     ActivityIndicator,
     TouchableWithoutFeedback,
     Keyboard,
+    Pressable,
 } from 'react-native';
 import { Link } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,13 +18,15 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AppButton from '@/components/AppButton';
 import Header from '@/components/Header';
 import { COLORS } from '@/constants/colors';
-import { signUp } from '@/lib/auth';
+import { signUp, type UserRole } from '@/lib/auth';
 
 export default function RegisterScreen() {
     const insets = useSafeAreaInsets();
+    const [fullName, setFullName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
+    const [role, setRole] = useState<UserRole>('student');
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -31,7 +34,7 @@ export default function RegisterScreen() {
     const handleRegister = async () => {
         setError(null);
 
-        if (!email.trim() || !password || !confirmPassword) {
+        if (!fullName.trim() || !email.trim() || !password || !confirmPassword) {
             setError('All fields are required.');
             return;
         }
@@ -49,12 +52,16 @@ export default function RegisterScreen() {
         setLoading(true);
 
         try {
-            const { error: authError } = await signUp(email.trim(), password);
+            const { data, error: authError } = await signUp(email.trim(), password, fullName.trim(), role);
 
             if (authError) {
                 setError(authError.message);
             } else {
-                setSuccess(true);
+                if (data.session) {
+                    setSuccess(true);
+                } else {
+                    setSuccess(true);
+                }
             }
         } catch (err) {
             const message = err instanceof Error ? err.message : String(err);
@@ -101,6 +108,32 @@ export default function RegisterScreen() {
                             </View>
                         ) : (
                             <View style={styles.form}>
+                                <Text style={styles.label}>Full Name</Text>
+                                <TextInput
+                                    style={styles.input}
+                                    value={fullName}
+                                    onChangeText={setFullName}
+                                    placeholder="Your full name"
+                                    placeholderTextColor={COLORS.textSecondary}
+                                    editable={!loading}
+                                />
+
+                                <Text style={styles.label}>I am a</Text>
+                                <View style={styles.roleRow}>
+                                    {(['student', 'teacher'] as UserRole[]).map((option) => (
+                                        <Pressable
+                                            key={option}
+                                            style={[styles.roleButton, role === option && styles.roleButtonActive]}
+                                            onPress={() => setRole(option)}
+                                            disabled={loading}
+                                        >
+                                            <Text style={[styles.roleButtonText, role === option && styles.roleButtonTextActive]}>
+                                                {option === 'student' ? 'Student' : 'Teacher'}
+                                            </Text>
+                                        </Pressable>
+                                    ))}
+                                </View>
+
                                 <Text style={styles.label}>Email</Text>
                                 <TextInput
                                     style={styles.input}
@@ -202,6 +235,33 @@ const styles = StyleSheet.create({
         color: COLORS.textPrimary,
         marginBottom: 6,
         marginTop: 10,
+    },
+    roleRow: {
+        flexDirection: 'row',
+        gap: 8,
+        marginTop: 6,
+        marginBottom: 4,
+    },
+    roleButton: {
+        flex: 1,
+        backgroundColor: COLORS.card,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: COLORS.border,
+        paddingVertical: 12,
+        alignItems: 'center',
+    },
+    roleButtonActive: {
+        backgroundColor: COLORS.primary,
+        borderColor: COLORS.primary,
+    },
+    roleButtonText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: COLORS.textPrimary,
+    },
+    roleButtonTextActive: {
+        color: '#FFFFFF',
     },
     input: {
         backgroundColor: COLORS.card,

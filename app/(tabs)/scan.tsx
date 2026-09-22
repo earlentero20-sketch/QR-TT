@@ -1,21 +1,44 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import AppButton from '@/components/AppButton';
 import { COLORS } from '@/constants/colors';
 import { useAuth } from '@/lib/auth';
-import { registerAttendance } from '@/lib/database';
+import { registerAttendance } from '@/lib/attendance';
+import { getProfile, isTeacherRole, normalizeRole } from '@/lib/profiles';
 
 
 export default function ScanScreen() {
   const { user } = useAuth();
+  const [role, setRole] = useState<string | null>(null);
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
   const [lastData, setLastData] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
+  useEffect(() => {
+    if (!user?.id) {
+      setRole(null);
+      return;
+    }
+
+    getProfile(user.id).then((profile) => {
+      setRole(normalizeRole(profile?.role));
+    });
+  }, [user?.id]);
+
+  if (role === 'teacher') {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.title}>Students Only</Text>
+        <Text style={styles.subtitle}>
+          This scan screen is for student attendance. Teacher accounts use the Teacher tab to create QR codes.
+        </Text>
+      </View>
+    );
+  }
 
   if (!permission) {
     return <View style={styles.container} />;
@@ -41,6 +64,8 @@ export default function ScanScreen() {
   const handleBarcodeScanned = ({ data }: { data: string }) => {
     setScanned(true);
     setLastData(data);
+    setMessage(null);
+    setSuccess(false);
     const studentId = user?.id ?? 'unknown';
     registerAttendance(data, studentId).then((result) => {
       setMessage(result.message);
@@ -52,6 +77,7 @@ export default function ScanScreen() {
     setScanned(false);
     setLastData(null);
     setMessage(null);
+    setSuccess(false);
   };
 
 
@@ -88,7 +114,7 @@ export default function ScanScreen() {
             theme="primary"
             title="Scan Again"
             icon="refresh"
-            onPress={() => setScanned(false)}
+            onPress={handleScanAgain}
           />
         )}
       </View>

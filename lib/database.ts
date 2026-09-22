@@ -16,7 +16,8 @@ export type Event = {
 
 type EventPayload = {
     v: number;
-    eventId: string;
+    event?: string;
+    eventId?: string;
     title?: string;
     start?: string;
     end?: string;
@@ -64,7 +65,9 @@ export async function registerAttendance(
         return { success: false, message: 'Invalid QR code.' };
     }
 
-    if (payload.v !== 1 || !payload.eventId) {
+    const eventId = payload.event ?? payload.eventId;
+
+    if (payload.v !== 1 || !eventId) {
         return { success: false, message: 'Not an attendance QR code.' };
     }
 
@@ -80,11 +83,11 @@ export async function registerAttendance(
     }
 
     const database = await getDb();
-    const title = payload.title ?? payload.eventId;
+    const title = payload.title ?? eventId;
 
     await database.runAsync(
         'INSERT OR IGNORE INTO events (eventId, title, start, end) VALUES (?, ?, ?, ?)',
-        payload.eventId,
+        eventId,
         title,
         payload.start ?? '',
         payload.end ?? ''
@@ -93,7 +96,7 @@ export async function registerAttendance(
     const result = await database.runAsync(
         'INSERT OR IGNORE INTO attendance (studentId, eventId, scannedAt) VALUES (?, ?, ?)',
         studentId,
-        payload.eventId,
+        eventId,
         new Date().toISOString()
     );
 

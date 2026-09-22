@@ -4,20 +4,46 @@ import { FlatList, StyleSheet, Text, View } from 'react-native';
 
 import { COLORS } from '@/constants/colors';
 import { useAuth } from '@/lib/auth';
-import { getAttendanceHistory, type AttendanceRecord } from '@/lib/database';
+import {
+  getAttendanceHistory,
+  getTeacherEventSummary,
+  type AttendanceRecord,
+  type TeacherEventSummary,
+} from '@/lib/attendance';
+import { getProfile, normalizeRole } from '@/lib/profiles';
 
 export default function HistoryScreen() {
   const { user } = useAuth();
 
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
+  const [teacherSummary, setTeacherSummary] = useState<TeacherEventSummary[]>([]);
+  const [role, setRole] = useState<'student' | 'teacher' | null>(null);
   const [loading, setLoading] = useState(true);
 
   const loadHistory = useCallback(() => {
-    const studentId = user?.id ?? 'unknown';
-
-    getAttendanceHistory(studentId).then((rows) => {
-      setRecords(rows);
+    if (!user?.id) {
       setLoading(false);
+      return;
+    }
+
+    getProfile(user.id).then((profile) => {
+      const nextRole = normalizeRole(profile?.role);
+      setRole(nextRole);
+
+      if (nextRole === 'teacher') {
+        getTeacherEventSummary(user.id).then((rows) => {
+          setTeacherSummary(rows);
+          setRecords([]);
+          setLoading(false);
+        });
+        return;
+      }
+
+      getAttendanceHistory(user.id).then((rows) => {
+        setRecords(rows);
+        setTeacherSummary([]);
+        setLoading(false);
+      });
     });
   }, [user?.id]);
 
@@ -29,10 +55,29 @@ export default function HistoryScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Attendance History</Text>
+      <Text style={styles.title}>
+        {role === 'teacher' ? 'Teacher Event Summary' : 'Attendance History'}
+      </Text>
 
       {loading ? (
         <Text style={styles.subtitle}>Loading records...</Text>
+      ) : role === 'teacher' ? (
+        teacherSummary.length === 0 ? (
+          <Text style={styles.subtitle}>No events created yet.</Text>
+        ) : (
+          <FlatList
+            data={teacherSummary}
+            keyExtractor={(item) => item.eventId}
+            contentContainerStyle={styles.list}
+            renderItem={({ item }) => (
+              <View style={styles.card}>
+                <Text style={styles.eventTitle}>{item.title}</Text>
+                <Text style={styles.eventMeta}>{item.eventId}</Text>
+                <Text style={styles.eventMeta}>{item.attendeeCount} attendee(s)</Text>
+              </View>
+            )}
+          />
+        )
       ) : records.length === 0 ? (
         <Text style={styles.subtitle}>
           No records yet. Scan a QR code to register your attendance.
