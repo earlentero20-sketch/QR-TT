@@ -8,20 +8,30 @@ import { getProfile, isTeacherRole, normalizeRole } from '@/lib/profiles';
 
 export default function TabsLayout() {
   const { user, loading } = useAuth();
-  const [role, setRole] = useState<string | null>(null);
+  const [role, setRole] = useState<string>('student');
 
   useEffect(() => {
     if (!user?.id) {
-      setRole(null);
       return;
     }
 
-    getProfile(user.id).then((profile) => {
-      setRole(normalizeRole(profile?.role));
-    });
+    let cancelled = false;
+    getProfile(user.id)
+      .then((profile) => {
+        if (!cancelled) {
+          setRole(normalizeRole(profile?.role));
+        }
+      })
+      .catch((error: unknown) => {
+        console.warn('Unable to load user role:', error);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [user?.id]);
 
-  if (loading || !user || role === null) {
+  if (loading || !user) {
     return null;
   }
 

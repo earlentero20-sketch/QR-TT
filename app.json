@@ -4,7 +4,7 @@
     "slug": "QR-ATT",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/app-icon.png",
     "scheme": "qr-attendance",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
