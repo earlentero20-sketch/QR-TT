@@ -1,33 +1,24 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { useEffect, useState } from 'react';
+import { useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import AppButton from '@/components/AppButton';
 import { COLORS } from '@/constants/colors';
 import { useAuth } from '@/lib/auth';
 import { registerAttendance } from '@/lib/attendance';
-import { getProfile, isTeacherRole, normalizeRole } from '@/lib/profiles';
-
+import { useRole } from '@/lib/profiles';
 
 export default function ScanScreen() {
   const { user } = useAuth();
-  const [role, setRole] = useState<string | null>(null);
+  const { role } = useRole();
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
   const [lastData, setLastData] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-
-  useEffect(() => {
-    if (!user?.id) {
-      setRole(null);
-      return;
-    }
-
-    getProfile(user.id).then((profile) => {
-      setRole(normalizeRole(profile?.role));
-    });
-  }, [user?.id]);
+  // The camera can report the same QR several times before React re-renders,
+  // which used to submit it twice ("recorded" instantly replaced by "already registered").
+  const scanLock = useRef(false);
 
   if (role === 'teacher') {
     return (
@@ -62,24 +53,32 @@ export default function ScanScreen() {
   }
 
   const handleBarcodeScanned = ({ data }: { data: string }) => {
+    if (scanLock.current) return;
+    scanLock.current = true;
     setScanned(true);
     setLastData(data);
     setMessage(null);
     setSuccess(false);
     const studentId = user?.id ?? 'unknown';
-    registerAttendance(data, studentId).then((result) => {
-      setMessage(result.message);
-      setSuccess(result.success);
-    });
+    registerAttendance(data, studentId)
+      .then((result) => {
+        setMessage(result.message);
+        setSuccess(result.success);
+      })
+      .catch((error: unknown) => {
+        console.warn('Unable to record attendance:', error);
+        setMessage('Unable to record attendance. Check that the database is configured.');
+        setSuccess(false);
+      });
   };
 
   const handleScanAgain = () => {
+    scanLock.current = false;
     setScanned(false);
     setLastData(null);
     setMessage(null);
     setSuccess(false);
   };
-
 
   return (
     <View style={styles.container}>
@@ -103,11 +102,9 @@ export default function ScanScreen() {
           </Text>
         )}
 
-
         {scanned && lastData && (
           <Text style={styles.scanData}>{lastData}</Text>
         )}
-
 
         {scanned && (
           <AppButton
@@ -164,8 +161,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   scanResult: { fontSize: 14, textAlign: 'center', marginBottom: 8, fontWeight: '600' },
-  success: { color: '#2E7D32' },   // green — attendance recorded
-  error: { color: '#C62828' },   // red — failed / duplicate
+  success: { color: '#2E7D32' },
+  error: { color: '#C62828' },
   scanData: { fontSize: 12, color: COLORS.textSecondary, textAlign: 'center', marginBottom: 12 },
-
 });

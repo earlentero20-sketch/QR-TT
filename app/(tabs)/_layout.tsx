@@ -1,52 +1,27 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Tabs } from 'expo-router';
-import { useEffect, useState } from 'react';
 
 import { COLORS } from '@/constants/colors';
-import { useAuth } from '@/lib/auth';
-import { getProfile, isTeacherRole, normalizeRole } from '@/lib/profiles';
+import { useRole } from '@/lib/profiles';
 
 export default function TabsLayout() {
-  const { user, loading } = useAuth();
-  const [role, setRole] = useState<string>('student');
+  const { role } = useRole();
+  const isTeacher = role === 'teacher';
 
-  useEffect(() => {
-    if (!user?.id) {
-      return;
-    }
-
-    let cancelled = false;
-    getProfile(user.id)
-      .then((profile) => {
-        if (!cancelled) {
-          setRole(normalizeRole(profile?.role));
-        }
-      })
-      .catch((error: unknown) => {
-        console.warn('Unable to load user role:', error);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [user?.id]);
-
-  if (loading || !user) {
-    return null;
-  }
-
+  // Every tab is ALWAYS declared. Leaving a <Tabs.Screen> out doesn't hide it
+  // (Expo Router auto-registers every file), it just loses its icon.
+  // `href: null` is the supported way to hide a tab.
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: COLORS.primary,
         tabBarInactiveTintColor: COLORS.textSecondary,
+        // No fixed height/padding: the tab bar adds the bottom safe-area
+        // inset itself so Android's nav bar doesn't cover it.
         tabBarStyle: {
           backgroundColor: COLORS.card,
           borderTopWidth: 0,
-          height: 64,
-          paddingBottom: 8,
-          paddingTop: 8,
         },
       }}
     >
@@ -59,17 +34,16 @@ export default function TabsLayout() {
           ),
         }}
       />
-      {role !== 'teacher' && (
-        <Tabs.Screen
-          name="scan"
-          options={{
-            title: 'Scan',
-            tabBarIcon: ({ color, focused }) => (
-              <Ionicons name={focused ? 'scan' : 'scan-outline'} color={color} size={24} />
-            ),
-          }}
-        />
-      )}
+      <Tabs.Screen
+        name="scan"
+        options={{
+          title: 'Scan',
+          href: isTeacher ? null : undefined,
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'scan' : 'scan-outline'} color={color} size={24} />
+          ),
+        }}
+      />
       <Tabs.Screen
         name="history"
         options={{
@@ -79,17 +53,16 @@ export default function TabsLayout() {
           ),
         }}
       />
-      {isTeacherRole(role) && (
-        <Tabs.Screen
-          name="teacher"
-          options={{
-            title: 'Teacher',
-            tabBarIcon: ({ color, focused }) => (
-              <Ionicons name={focused ? 'clipboard' : 'clipboard-outline'} color={color} size={24} />
-            ),
-          }}
-        />
-      )}
+      <Tabs.Screen
+        name="teacher"
+        options={{
+          title: 'Teacher',
+          href: isTeacher ? undefined : null,
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'clipboard' : 'clipboard-outline'} color={color} size={24} />
+          ),
+        }}
+      />
       <Tabs.Screen
         name="profile"
         options={{

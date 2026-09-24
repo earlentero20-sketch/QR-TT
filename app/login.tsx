@@ -11,7 +11,7 @@ import {
     TouchableWithoutFeedback,
     Keyboard,
 } from 'react-native';
-import { Link, useRouter } from 'expo-router';
+import { Link } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import AppButton from '@/components/AppButton';
@@ -21,7 +21,6 @@ import { signIn } from '@/lib/auth';
 
 export default function LoginScreen() {
     const insets = useSafeAreaInsets();
-    const router = useRouter();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState<string | null>(null);
@@ -29,6 +28,12 @@ export default function LoginScreen() {
 
     const handleLogin = async () => {
         setError(null);
+
+        if (!email.trim() || !password) {
+            setError('Enter your email and password.');
+            return;
+        }
+
         setLoading(true);
 
         try {
@@ -36,11 +41,16 @@ export default function LoginScreen() {
 
             if (authError) {
                 setError(authError.message);
-            } else {
-                router.replace('/(tabs)');
+            } else if (!data.session) {
+                setError('Check your email to confirm your account, then sign in again.');
             }
-        } catch (err: any) {
-            setError(err?.message || 'Unexpected error');
+            // On success signIn() stores the session and the root layout's
+            // Stack.Protected moves us to the tabs automatically.
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : String(err);
+            setError(message.toLowerCase().includes('network request failed')
+                ? 'Cannot reach the authentication server. Check your internet connection and try again.'
+                : message || 'Unable to sign in. Please try again.');
         } finally {
             setLoading(false);
         }
@@ -50,65 +60,69 @@ export default function LoginScreen() {
         <View style={[styles.container, { paddingTop: insets.top }]}>
             <KeyboardAvoidingView
                 style={styles.keyboardView}
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             >
-                <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-                    <ScrollView
-                        contentContainerStyle={styles.scrollContent}
-                        keyboardShouldPersistTaps="handled"
-                        showsVerticalScrollIndicator={false}
-                    >
-                        <View style={styles.headerContainer}>
-                            <Header title="QR Attendance" />
-                        </View>
+                <ScrollView
+                    style={styles.scrollView}
+                    contentContainerStyle={styles.scrollContent}
+                    keyboardShouldPersistTaps="handled"
+                    keyboardDismissMode="on-drag"
+                    nestedScrollEnabled
+                    showsVerticalScrollIndicator
+                >
+                    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+                        <View>
+                            <View style={styles.headerContainer}>
+                                <Header title="QR Attendance" />
+                            </View>
 
-                        <Text style={styles.title}>Welcome Back</Text>
-                        <Text style={styles.subtitle}>Sign in to record your attendance</Text>
+                            <Text style={styles.title}>Welcome Back</Text>
+                            <Text style={styles.subtitle}>Sign in to record your attendance</Text>
 
-                        <View style={styles.form}>
-                            <Text style={styles.label}>Email</Text>
-                            <TextInput
-                                style={styles.input}
-                                value={email}
-                                onChangeText={setEmail}
-                                placeholder="your.email@school.edu"
-                                placeholderTextColor={COLORS.textSecondary}
-                                autoCapitalize="none"
-                                keyboardType="email-address"
-                                editable={!loading}
-                            />
-
-                            <Text style={styles.label}>Password</Text>
-                            <TextInput
-                                style={styles.input}
-                                value={password}
-                                onChangeText={setPassword}
-                                placeholder="Enter your password"
-                                placeholderTextColor={COLORS.textSecondary}
-                                secureTextEntry
-                                editable={!loading}
-                            />
-
-                            {error && <Text style={styles.error}>{error}</Text>}
-
-                            {loading ? (
-                                <ActivityIndicator size="large" color={COLORS.primary} style={styles.loader} />
-                            ) : (
-                                <AppButton
-                                    theme="primary"
-                                    title="Sign In"
-                                    icon="log-in-outline"
-                                    onPress={handleLogin}
+                            <View style={styles.form}>
+                                <Text style={styles.label}>Email</Text>
+                                <TextInput
+                                    style={styles.input}
+                                    value={email}
+                                    onChangeText={setEmail}
+                                    placeholder="your.email@school.edu"
+                                    placeholderTextColor={COLORS.textSecondary}
+                                    autoCapitalize="none"
+                                    keyboardType="email-address"
+                                    editable={!loading}
                                 />
-                            )}
-                        </View>
 
-                        <Link href="/register" style={styles.link}>
-                            Don't have an account? Sign Up
-                        </Link>
-                    </ScrollView>
-                </TouchableWithoutFeedback>
+                                <Text style={styles.label}>Password</Text>
+                                <TextInput
+                                    style={styles.input}
+                                    value={password}
+                                    onChangeText={setPassword}
+                                    placeholder="Enter your password"
+                                    placeholderTextColor={COLORS.textSecondary}
+                                    secureTextEntry
+                                    editable={!loading}
+                                />
+
+                                {error && <Text style={styles.error}>{error}</Text>}
+
+                                {loading ? (
+                                    <ActivityIndicator size="large" color={COLORS.primary} style={styles.loader} />
+                                ) : (
+                                    <AppButton
+                                        theme="primary"
+                                        title="Sign In"
+                                        icon="log-in-outline"
+                                        onPress={handleLogin}
+                                    />
+                                )}
+                            </View>
+
+                            <Link href="/register" style={styles.link}>
+                                Don't have an account? Sign Up
+                            </Link>
+                        </View>
+                    </TouchableWithoutFeedback>
+                </ScrollView>
             </KeyboardAvoidingView>
         </View>
     );
@@ -120,6 +134,9 @@ const styles = StyleSheet.create({
         backgroundColor: COLORS.background,
     },
     keyboardView: {
+        flex: 1,
+    },
+    scrollView: {
         flex: 1,
     },
     scrollContent: {

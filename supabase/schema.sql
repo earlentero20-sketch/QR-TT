@@ -58,18 +58,21 @@ alter table public.profiles enable row level security;
 alter table public.events enable row level security;
 alter table public.attendance enable row level security;
 
-create policy if not exists "Profiles are viewable by owner"
+drop policy if exists "Profiles are viewable by owner" on public.profiles;
+create policy "Profiles are viewable by owner"
 on public.profiles
 for select
 using (auth.uid() = id);
 
-create policy if not exists "Users can update their own profile"
+drop policy if exists "Users can update their own profile" on public.profiles;
+create policy "Users can update their own profile"
 on public.profiles
 for update
 using (auth.uid() = id)
 with check (auth.uid() = id);
 
-create policy if not exists "Teachers can create their own events"
+drop policy if exists "Teachers can create their own events" on public.events;
+create policy "Teachers can create their own events"
 on public.events
 for insert
 with check (auth.uid() = created_by and exists (
@@ -77,22 +80,39 @@ with check (auth.uid() = created_by and exists (
   where p.id = auth.uid() and p.role = 'teacher'
 ));
 
-create policy if not exists "Teachers can view their own events"
+drop policy if exists "Teachers can view their own events" on public.events;
+create policy "Teachers can view their own events"
 on public.events
 for select
-using (auth.uid() = created_by);
+using (auth.role() = 'authenticated');
 
-create policy if not exists "Students can insert their own attendance"
+drop policy if exists "Teachers can update their own events" on public.events;
+create policy "Teachers can update their own events"
+on public.events
+for update
+using (auth.uid() = created_by)
+with check (auth.uid() = created_by);
+
+drop policy if exists "Students can insert their own attendance" on public.attendance;
+create policy "Students can insert their own attendance"
 on public.attendance
 for insert
-with check (auth.uid() = student_id);
+with check (
+  auth.uid() = student_id
+  and exists (
+    select 1 from public.profiles p
+    where p.id = auth.uid() and p.role = 'student'
+  )
+);
 
-create policy if not exists "Users can view their own attendance"
+drop policy if exists "Users can view their own attendance" on public.attendance;
+create policy "Users can view their own attendance"
 on public.attendance
 for select
 using (auth.uid() = student_id);
 
-create policy if not exists "Teachers can view attendance for their events"
+drop policy if exists "Teachers can view attendance for their events" on public.attendance;
+create policy "Teachers can view attendance for their events"
 on public.attendance
 for select
 using (exists (
@@ -102,7 +122,8 @@ using (exists (
     and e.created_by = auth.uid()
 ));
 
-create policy if not exists "Teachers can view profiles of their attendees"
+drop policy if exists "Teachers can view profiles of their attendees" on public.profiles;
+create policy "Teachers can view profiles of their attendees"
 on public.profiles
 for select
 using (

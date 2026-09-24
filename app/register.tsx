@@ -56,12 +56,10 @@ export default function RegisterScreen() {
 
             if (authError) {
                 setError(authError.message);
-            } else {
-                if (data.session) {
-                    setSuccess(true);
-                } else {
-                    setSuccess(true);
-                }
+            } else if (!data.session) {
+                // Email confirmation is on. If a session came back, signUp()
+                // stored it and Stack.Protected takes us to the tabs.
+                setSuccess(true);
             }
         } catch (err) {
             const message = err instanceof Error ? err.message : String(err);
@@ -79,117 +77,121 @@ export default function RegisterScreen() {
         <View style={[styles.container, { paddingTop: insets.top }]}>
             <KeyboardAvoidingView
                 style={styles.keyboardView}
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             >
-                <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-                    <ScrollView
-                        contentContainerStyle={styles.scrollContent}
-                        keyboardShouldPersistTaps="handled"
-                        showsVerticalScrollIndicator={false}
-                    >
-                        <View style={styles.headerContainer}>
-                            <Header title="QR Attendance" />
-                        </View>
-
-                        <Text style={styles.title}>Create Account</Text>
-                        <Text style={styles.subtitle}>Register to start recording attendance</Text>
-
-                        {success ? (
-                            <View style={styles.successContainer}>
-                                <Text style={styles.successTitle}>Check your email!</Text>
-                                <Text style={styles.successText}>
-                                    We sent a confirmation link to {email}. Click the link to verify your
-                                    account, then come back and sign in.
-                                </Text>
-                                <Link href="/login" style={styles.link}>
-                                    Back to Sign In
-                                </Link>
+                <ScrollView
+                    style={styles.scrollView}
+                    contentContainerStyle={styles.scrollContent}
+                    keyboardShouldPersistTaps="handled"
+                    keyboardDismissMode="on-drag"
+                    nestedScrollEnabled
+                    showsVerticalScrollIndicator
+                >
+                    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+                        <View>
+                            <View style={styles.headerContainer}>
+                                <Header title="QR Attendance" />
                             </View>
-                        ) : (
-                            <View style={styles.form}>
-                                <Text style={styles.label}>Full Name</Text>
-                                <TextInput
-                                    style={styles.input}
-                                    value={fullName}
-                                    onChangeText={setFullName}
-                                    placeholder="Your full name"
-                                    placeholderTextColor={COLORS.textSecondary}
-                                    editable={!loading}
-                                />
 
-                                <Text style={styles.label}>I am a</Text>
-                                <View style={styles.roleRow}>
-                                    {(['student', 'teacher'] as UserRole[]).map((option) => (
-                                        <Pressable
-                                            key={option}
-                                            style={[styles.roleButton, role === option && styles.roleButtonActive]}
-                                            onPress={() => setRole(option)}
-                                            disabled={loading}
-                                        >
-                                            <Text style={[styles.roleButtonText, role === option && styles.roleButtonTextActive]}>
-                                                {option === 'student' ? 'Student' : 'Teacher'}
-                                            </Text>
-                                        </Pressable>
-                                    ))}
+                            <Text style={styles.title}>Create Account</Text>
+                            <Text style={styles.subtitle}>Register to start recording attendance</Text>
+
+                            {success ? (
+                                <View style={styles.successContainer}>
+                                    <Text style={styles.successTitle}>Check your email!</Text>
+                                    <Text style={styles.successText}>
+                                        We sent a confirmation link to {email}. Click the link to verify your
+                                        account, then come back and sign in.
+                                    </Text>
+                                    <Link href="/login" style={styles.link}>
+                                        Back to Sign In
+                                    </Link>
                                 </View>
-
-                                <Text style={styles.label}>Email</Text>
-                                <TextInput
-                                    style={styles.input}
-                                    value={email}
-                                    onChangeText={setEmail}
-                                    placeholder="your.email@school.edu"
-                                    placeholderTextColor={COLORS.textSecondary}
-                                    autoCapitalize="none"
-                                    keyboardType="email-address"
-                                    editable={!loading}
-                                />
-
-                                <Text style={styles.label}>Password</Text>
-                                <TextInput
-                                    style={styles.input}
-                                    value={password}
-                                    onChangeText={setPassword}
-                                    placeholder="At least 6 characters"
-                                    placeholderTextColor={COLORS.textSecondary}
-                                    secureTextEntry
-                                    editable={!loading}
-                                />
-
-                                <Text style={styles.label}>Confirm Password</Text>
-                                <TextInput
-                                    style={styles.input}
-                                    value={confirmPassword}
-                                    onChangeText={setConfirmPassword}
-                                    placeholder="Re-enter your password"
-                                    placeholderTextColor={COLORS.textSecondary}
-                                    secureTextEntry
-                                    editable={!loading}
-                                />
-
-                                {error && <Text style={styles.error}>{error}</Text>}
-
-                                {loading ? (
-                                    <ActivityIndicator size="large" color={COLORS.primary} style={styles.loader} />
-                                ) : (
-                                    <AppButton
-                                        theme="primary"
-                                        title="Sign Up"
-                                        icon="person-add-outline"
-                                        onPress={handleRegister}
+                            ) : (
+                                <View style={styles.form}>
+                                    <Text style={styles.label}>Full Name</Text>
+                                    <TextInput
+                                        style={styles.input}
+                                        value={fullName}
+                                        onChangeText={setFullName}
+                                        placeholder="Your full name"
+                                        placeholderTextColor={COLORS.textSecondary}
+                                        editable={!loading}
                                     />
-                                )}
-                            </View>
-                        )}
 
-                        {!success && (
-                            <Link href="/login" style={styles.link}>
-                                Already have an account? Sign In
-                            </Link>
-                        )}
-                    </ScrollView>
-                </TouchableWithoutFeedback>
+                                    <Text style={styles.label}>I am a</Text>
+                                    <View style={styles.roleRow}>
+                                        {(['student', 'teacher'] as UserRole[]).map((option) => (
+                                            <Pressable
+                                                key={option}
+                                                style={[styles.roleButton, role === option && styles.roleButtonActive]}
+                                                onPress={() => setRole(option)}
+                                                disabled={loading}
+                                            >
+                                                <Text style={[styles.roleButtonText, role === option && styles.roleButtonTextActive]}>
+                                                    {option === 'student' ? 'Student' : 'Teacher'}
+                                                </Text>
+                                            </Pressable>
+                                        ))}
+                                    </View>
+
+                                    <Text style={styles.label}>Email</Text>
+                                    <TextInput
+                                        style={styles.input}
+                                        value={email}
+                                        onChangeText={setEmail}
+                                        placeholder="your.email@school.edu"
+                                        placeholderTextColor={COLORS.textSecondary}
+                                        autoCapitalize="none"
+                                        keyboardType="email-address"
+                                        editable={!loading}
+                                    />
+
+                                    <Text style={styles.label}>Password</Text>
+                                    <TextInput
+                                        style={styles.input}
+                                        value={password}
+                                        onChangeText={setPassword}
+                                        placeholder="At least 6 characters"
+                                        placeholderTextColor={COLORS.textSecondary}
+                                        secureTextEntry
+                                        editable={!loading}
+                                    />
+
+                                    <Text style={styles.label}>Confirm Password</Text>
+                                    <TextInput
+                                        style={styles.input}
+                                        value={confirmPassword}
+                                        onChangeText={setConfirmPassword}
+                                        placeholder="Re-enter your password"
+                                        placeholderTextColor={COLORS.textSecondary}
+                                        secureTextEntry
+                                        editable={!loading}
+                                    />
+
+                                    {error && <Text style={styles.error}>{error}</Text>}
+
+                                    {loading ? (
+                                        <ActivityIndicator size="large" color={COLORS.primary} style={styles.loader} />
+                                    ) : (
+                                        <AppButton
+                                            theme="primary"
+                                            title="Sign Up"
+                                            icon="person-add-outline"
+                                            onPress={handleRegister}
+                                        />
+                                    )}
+                                </View>
+                            )}
+
+                            {!success && (
+                                <Link href="/login" style={styles.link}>
+                                    Already have an account? Sign In
+                                </Link>
+                            )}
+                        </View>
+                    </TouchableWithoutFeedback>
+                </ScrollView>
             </KeyboardAvoidingView>
         </View>
     );
@@ -201,6 +203,9 @@ const styles = StyleSheet.create({
         backgroundColor: COLORS.background,
     },
     keyboardView: {
+        flex: 1,
+    },
+    scrollView: {
         flex: 1,
     },
     scrollContent: {

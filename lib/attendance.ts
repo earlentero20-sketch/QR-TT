@@ -21,6 +21,12 @@ export type TeacherEventSummary = {
   attendeeCount: number;
 };
 
+export type TeacherEventAttendance = TeacherEventSummary & {
+  start: string;
+  end: string;
+  attendees: { studentId: string; scannedAt: string }[];
+};
+
 export type EventPayload = {
   v: number;
   event?: string;
@@ -133,4 +139,46 @@ export async function getTeacherEventSummary(userId: string): Promise<TeacherEve
     title: event.title,
     attendeeCount: counts[event.event_code] ?? 0,
   }));
+}
+
+export async function getTeacherEventAttendance(userId: string): Promise<TeacherEventAttendance[]> {
+  const { data: events, error: eventsError } = await supabase
+    .from('events')
+    .select('event_code, title, start_time, end_time')
+    .eq('created_by', userId)
+    .order('start_time', { ascending: false });
+
+  if (eventsError) {
+    throw eventsError;
+  }
+
+  const eventCodes = (events ?? []).map((event) => event.event_code);
+  if (!eventCodes.length) {
+    return [];
+  }
+
+  const { data: attendance, error: attendanceError } = await supabase
+    .from('attendance')
+    .select('event_code, student_id, scanned_at')
+    .in('event_code', eventCodes)
+    .order('scanned_at', { ascending: false });
+
+  if (attendanceError) {
+    throw attendanceError;
+  }
+
+  return (events ?? []).map((event) => {
+    const attendees = (attendance ?? [])
+      .filter((row) => row.event_code === event.event_code)
+      .map((row) => ({ studentId: row.student_id, scannedAt: row.scanned_at }));
+
+    return {
+      eventId: event.event_code,
+      title: event.title,
+      start: event.start_time,
+      end: event.end_time,
+      attendeeCount: attendees.length,
+      attendees,
+    };
+  });
 }

@@ -2,50 +2,52 @@ import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { FlatList, StyleSheet, Text, View } from 'react-native';
 
+import Screen from '@/components/Screen';
 import { COLORS } from '@/constants/colors';
 import { useAuth } from '@/lib/auth';
 import {
   getAttendanceHistory,
-  getTeacherEventSummary,
+  getTeacherEventAttendance,
   type AttendanceRecord,
-  type TeacherEventSummary,
+  type TeacherEventAttendance,
 } from '@/lib/attendance';
-import { getProfile, normalizeRole } from '@/lib/profiles';
+import { useRole } from '@/lib/profiles';
 
 export default function HistoryScreen() {
   const { user } = useAuth();
+  const { role } = useRole();
 
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
-  const [teacherSummary, setTeacherSummary] = useState<TeacherEventSummary[]>([]);
-  const [role, setRole] = useState<'student' | 'teacher' | null>(null);
+  const [teacherEvents, setTeacherEvents] = useState<TeacherEventAttendance[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const loadHistory = useCallback(() => {
-    if (!user?.id) {
-      setLoading(false);
-      return;
+  const userId = user?.id;
+
+  const loadHistory = useCallback(async () => {
+    if (!userId || !role) {
+      return; // wait until we know who and what the user is
     }
 
-    getProfile(user.id).then((profile) => {
-      const nextRole = normalizeRole(profile?.role);
-      setRole(nextRole);
+    setError(null);
 
-      if (nextRole === 'teacher') {
-        getTeacherEventSummary(user.id).then((rows) => {
-          setTeacherSummary(rows);
-          setRecords([]);
-          setLoading(false);
-        });
-        return;
+    try {
+      if (role === 'teacher') {
+        setTeacherEvents(await getTeacherEventAttendance(userId));
+        setRecords([]);
+      } else {
+        setRecords(await getAttendanceHistory(userId));
+        setTeacherEvents([]);
       }
-
-      getAttendanceHistory(user.id).then((rows) => {
-        setRecords(rows);
-        setTeacherSummary([]);
-        setLoading(false);
-      });
-    });
-  }, [user?.id]);
+    } catch (loadError: unknown) {
+      const message = loadError instanceof Error ? loadError.message : String(loadError);
+      setError(message.includes("Could not find the table 'public.attendance'")
+        ? 'Attendance database setup is incomplete. Run supabase/schema.sql in the Supabase SQL Editor.'
+        : 'Unable to load attendance history. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  }, [userId, role]);
 
   useFocusEffect(
     useCallback(() => {
@@ -54,26 +56,34 @@ export default function HistoryScreen() {
   );
 
   return (
-    <View style={styles.container}>
+    <Screen scroll={false}>
       <Text style={styles.title}>
         {role === 'teacher' ? 'Teacher Event Summary' : 'Attendance History'}
       </Text>
 
       {loading ? (
         <Text style={styles.subtitle}>Loading records...</Text>
+      ) : error ? (
+        <Text style={styles.error}>{error}</Text>
       ) : role === 'teacher' ? (
-        teacherSummary.length === 0 ? (
+        teacherEvents.length === 0 ? (
           <Text style={styles.subtitle}>No events created yet.</Text>
         ) : (
           <FlatList
-            data={teacherSummary}
+            data={teacherEvents}
             keyExtractor={(item) => item.eventId}
+            style={styles.listView}
             contentContainerStyle={styles.list}
             renderItem={({ item }) => (
               <View style={styles.card}>
                 <Text style={styles.eventTitle}>{item.title}</Text>
                 <Text style={styles.eventMeta}>{item.eventId}</Text>
                 <Text style={styles.eventMeta}>{item.attendeeCount} attendee(s)</Text>
+                {item.attendees.map((attendee) => (
+                  <Text key={`${attendee.studentId}-${attendee.scannedAt}`} style={styles.attendee}>
+                    {shortId(attendee.studentId)} - {formatDate(attendee.scannedAt)}
+                  </Text>
+                ))}
               </View>
             )}
           />
@@ -86,6 +96,7 @@ export default function HistoryScreen() {
         <FlatList
           data={records}
           keyExtractor={(item) => String(item.id)}
+          style={styles.listView}
           contentContainerStyle={styles.list}
           renderItem={({ item }) => (
             <View style={styles.card}>
@@ -96,7 +107,7 @@ export default function HistoryScreen() {
           )}
         />
       )}
-    </View>
+    </Screen>
   );
 }
 
@@ -104,13 +115,11 @@ function formatDate(iso: string) {
   return new Date(iso).toLocaleString();
 }
 
+function shortId(id: string) {
+  return id ? `...${id.slice(-8)}` : 'unknown';
+}
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-    paddingHorizontal: 24,
-    paddingTop: 24,
-  },
   title: {
     fontSize: 20,
     fontWeight: '600',
@@ -124,8 +133,18 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     marginTop: 32,
   },
+  error: {
+    fontSize: 14,
+    color: '#C62828',
+    lineHeight: 20,
+    marginTop: 32,
+    textAlign: 'center',
+  },
   list: {
     paddingBottom: 24,
+  },
+  listView: {
+    flex: 1,
   },
   card: {
     backgroundColor: COLORS.card,
@@ -148,5 +167,10 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: COLORS.textSecondary,
     marginTop: 2,
+  },
+  attendee: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginTop: 6,
   },
 });

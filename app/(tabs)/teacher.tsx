@@ -2,11 +2,11 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import DateTimePicker, {
   type DateTimePickerEvent,
 } from '@react-native-community/datetimepicker';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import {
+  ActivityIndicator,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -15,18 +15,19 @@ import {
 import QRCode from 'react-native-qrcode-svg';
 
 import AppButton from '@/components/AppButton';
+import Screen from '@/components/Screen';
 import { COLORS } from '@/constants/colors';
-import { useAuth } from '@/lib/auth';
 import { buildQRPayload } from '@/lib/qr';
 import { createEvent } from '@/lib/events';
-import { getProfile, isTeacherRole, normalizeRole } from '@/lib/profiles';
+import { useRole } from '@/lib/profiles';
 
-function toLocalISO(date: Date) {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return (
-    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
-    `T${pad(date.getHours())}:${pad(date.getMinutes())}:00`
-  );
+// Send a real instant (UTC, with the trailing "Z"). The old helper sent local
+// wall-clock time with no offset, and the database (UTC) read "10:00" in
+// Cebu as 10:00 UTC = 18:00 local, so events looked "not started yet" for 8 hours.
+function toISO(date: Date) {
+  const rounded = new Date(date);
+  rounded.setSeconds(0, 0);
+  return rounded.toISOString();
 }
 
 function formatDateTime(date: Date) {
@@ -46,8 +47,7 @@ const QUICK_END_OPTIONS = [
 type EditTarget = 'start' | 'end';
 
 export default function TeacherScreen() {
-  const { user } = useAuth();
-  const [role, setRole] = useState<string | null>(null);
+  const { role, loading: roleLoading } = useRole();
   const [title, setTitle] = useState('');
   const [eventId, setEventId] = useState('');
   const [startDate, setStartDate] = useState(() => new Date());
@@ -59,31 +59,24 @@ export default function TeacherScreen() {
   const [payload, setPayload] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!user?.id) {
-      setRole(null);
-      return;
-    }
-
-    getProfile(user.id).then((profile) => {
-      setRole(normalizeRole(profile?.role));
-    });
-  }, [user?.id]);
-
   const isAndroid = Platform.OS === 'android';
 
-  if (role === null) {
-    return <View style={styles.container} />;
+  if (role === null || roleLoading) {
+    return (
+      <Screen scroll={false} contentStyle={styles.centered}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+      </Screen>
+    );
   }
 
-  if (!isTeacherRole(role)) {
+  if (role !== 'teacher') {
     return (
-      <View style={styles.container}>
+      <Screen scroll={false}>
         <Text style={styles.title}>Teachers Only</Text>
         <Text style={styles.subtitle}>
           This area is restricted to teacher accounts. Sign in with a teacher profile to create QR events.
         </Text>
-      </View>
+      </Screen>
     );
   }
 
@@ -129,8 +122,8 @@ export default function TeacherScreen() {
     const event = {
       eventId: eventId.trim(),
       title: title.trim(),
-      start: toLocalISO(startDate),
-      end: toLocalISO(endDate),
+      start: toISO(startDate),
+      end: toISO(endDate),
     };
 
     if (!event.eventId || !event.title) {
@@ -143,25 +136,41 @@ export default function TeacherScreen() {
       return;
     }
 
-    createEvent(event).then(() => {
-      setMessage('Event saved! Scan the QR with the Scan tab to test it.');
-      setPayload(
-        buildQRPayload({
-          eventId: event.eventId,
-          title: event.title,
-          start: event.start,
-          end: event.end,
-        })
-      );
-    });
+    setPayload(null);
+    createEvent(event)
+      .then(() => {
+        setMessage('Event saved! Scan the QR with the Scan tab to test it.');
+        setPayload(
+          buildQRPayload({
+            eventId: event.eventId,
+            title: event.title,
+            start: event.start,
+            end: event.end,
+          })
+        );
+      })
+      .catch((error: unknown) => {
+        console.warn('Unable to save event:', error);
+        setMessage('Unable to save the event. Check your connection and permissions.');
+      });
   };
 
+  // Render the picker directly under the field being edited. It used to render
+  // below the Create button, off-screen on most phones.
+  const renderPicker = (target: EditTarget) =>
+    editTarget === target ? (
+      <View style={styles.pickerContainer}>
+        <DateTimePicker
+          value={target === 'start' ? startDate : endDate}
+          mode={isAndroid ? editingPart : 'datetime'}
+          display={isAndroid ? 'default' : 'spinner'}
+          onChange={onPickerChange}
+        />
+      </View>
+    ) : null;
+
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      keyboardShouldPersistTaps="handled"
-    >
+    <Screen>
       <Text style={styles.title}>Create Event QR</Text>
       <Text style={styles.subtitle}>
         Fill in the event details, then scan the generated QR with the Scan tab.
@@ -192,6 +201,7 @@ export default function TeacherScreen() {
         icon="sunny-outline"
         onPress={() => openPicker('start')}
       />
+      {renderPicker('start')}
 
       <Text style={styles.label}>Ends</Text>
       <PickerField
@@ -199,6 +209,7 @@ export default function TeacherScreen() {
         icon="moon-outline"
         onPress={() => openPicker('end')}
       />
+      {renderPicker('end')}
       <View style={styles.chipRow}>
         {QUICK_END_OPTIONS.map((option) => (
           <Pressable
@@ -221,17 +232,6 @@ export default function TeacherScreen() {
         onPress={handleCreateEvent}
       />
 
-      {editTarget && (
-        <View style={styles.pickerContainer}>
-          <DateTimePicker
-            value={editTarget === 'start' ? startDate : endDate}
-            mode={isAndroid ? editingPart : 'datetime'}
-            display={isAndroid ? 'default' : 'spinner'}
-            onChange={onPickerChange}
-          />
-        </View>
-      )}
-
       {payload && (
         <View style={styles.resultCard}>
           <Text style={styles.resultTitle}>
@@ -243,7 +243,7 @@ export default function TeacherScreen() {
           <Text style={styles.payloadText}>{payload}</Text>
         </View>
       )}
-    </ScrollView>
+    </Screen>
   );
 }
 
@@ -267,14 +267,9 @@ function PickerField({ value, icon, onPress }: PickerFieldProps) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  content: {
-    paddingHorizontal: 24,
-    paddingTop: 24,
-    paddingBottom: 40,
+  centered: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   title: {
     fontSize: 20,

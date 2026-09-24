@@ -1,36 +1,28 @@
 import { useEffect, useState } from 'react';
-import { StyleSheet, Text, View, Alert, TextInput } from 'react-native';
-import { useRouter } from 'expo-router';
+import { Alert, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import AppButton from '@/components/AppButton';
+import Screen from '@/components/Screen';
 import { COLORS } from '@/constants/colors';
-import { useAuth, signOut } from '@/lib/auth';
-import { getProfile, updateProfile } from '@/lib/profiles';
+import { signOut, useAuth } from '@/lib/auth';
+import { updateProfile, useRole } from '@/lib/profiles';
 
 export default function ProfileScreen() {
   const { user } = useAuth();
+  const { role, profile, refresh } = useRole();
   const [loading, setLoading] = useState(false);
   const [savingName, setSavingName] = useState(false);
   const [fullName, setFullName] = useState('');
-  const [role, setRole] = useState<string>('student');
-  const router = useRouter();
 
   useEffect(() => {
-    const loadProfile = async () => {
-      if (!user?.id) return;
-      const profile = await getProfile(user.id);
-      setFullName(profile?.full_name ?? '');
-      setRole(profile?.role ?? 'student');
-    };
-
-    loadProfile();
-  }, [user?.id]);
+    setFullName(profile?.full_name ?? '');
+  }, [profile?.full_name]);
 
   const handleSignOut = async () => {
     setLoading(true);
     try {
+      // Stack.Protected sends us to /login once the session is cleared.
       await signOut();
-      router.replace('/login');
     } catch (err: any) {
       Alert.alert('Error', err?.message || 'Failed to sign out.');
     } finally {
@@ -43,6 +35,7 @@ export default function ProfileScreen() {
     setSavingName(true);
     try {
       await updateProfile(user.id, { full_name: fullName.trim() || null });
+      await refresh();
       Alert.alert('Profile updated', 'Your display name was saved.');
     } catch (err: any) {
       Alert.alert('Error', err?.message || 'Could not update profile.');
@@ -51,8 +44,10 @@ export default function ProfileScreen() {
     }
   };
 
+  const roleLabel = role === 'teacher' ? 'Teacher' : role === 'student' ? 'Student' : '...';
+
   return (
-    <View style={styles.container}>
+    <Screen>
       <Text style={styles.title}>My Profile</Text>
 
       {user && (
@@ -67,7 +62,7 @@ export default function ProfileScreen() {
           />
 
           <Text style={styles.label}>Role</Text>
-          <Text style={styles.value}>{role === 'teacher' ? 'Teacher' : 'Student'}</Text>
+          <Text style={styles.value}>{roleLabel}</Text>
 
           <Text style={styles.label}>Email</Text>
           <Text style={styles.value}>{user.email}</Text>
@@ -90,17 +85,11 @@ export default function ProfileScreen() {
         onPress={handleSignOut}
         disabled={loading}
       />
-    </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-    paddingHorizontal: 24,
-    paddingTop: 24,
-  },
   title: {
     fontSize: 20,
     fontWeight: '600',
@@ -128,6 +117,7 @@ const styles = StyleSheet.create({
   valueSmall: {
     fontSize: 11,
     color: COLORS.textSecondary,
+    marginBottom: 12,
   },
   input: {
     backgroundColor: COLORS.background,

@@ -1,11 +1,12 @@
 import { Stack } from 'expo-router';
-import { StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
+import { COLORS } from '@/constants/colors';
 import { useAuth } from '@/lib/auth';
 import { isSupabaseConfigured } from '@/lib/supabase';
 
 export default function RootLayout() {
-  const { user } = useAuth();
+  const { session, loading } = useAuth();
 
   if (!isSupabaseConfigured) {
     return (
@@ -19,14 +20,22 @@ export default function RootLayout() {
     );
   }
 
+  if (loading) {
+    return (
+      <View style={styles.loading}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+      </View>
+    );
+  }
+
   return (
     <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Protected guard={!user}>
+      <Stack.Protected guard={!session}>
         <Stack.Screen name="login" />
         <Stack.Screen name="register" />
       </Stack.Protected>
 
-      <Stack.Protected guard={!!user}>
+      <Stack.Protected guard={!!session}>
         <Stack.Screen name="(tabs)" />
       </Stack.Protected>
     </Stack>
@@ -50,5 +59,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 24,
     color: '#5F6368',
+  },
+  loading: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.background,
   },
 });
