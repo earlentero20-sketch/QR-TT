@@ -78,7 +78,14 @@ export async function registerAttendance(
       };
     }
 
-    return { success: false, message: 'Unable to save attendance.' };
+    // Show the real database error so we can see WHY the save failed
+    // (e.g. 42501 = row-level-security, 42703 = missing column).
+    console.warn('Attendance insert failed:', error);
+    return {
+      success: false,
+      message: `Unable to save attendance. (${(error as any).code ?? 'error'}: ${error.message})`,
+      eventTitle: event.title,
+    };
   }
 
   return { success: true, message: 'Attendance recorded!', eventTitle: event.title };

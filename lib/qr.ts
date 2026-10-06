@@ -16,12 +16,15 @@ export function buildQRPayload(input: {
   start?: string;
   end?: string;
 }): string {
+  // Keep the QR tiny: only the version and event code go in the code.
+  // registerAttendance() looks the event up in the database by this code and
+  // takes the title and time window from there, so title/start/end here were
+  // never used. Fewer characters = a much simpler QR that a phone camera can
+  // read reliably off another phone's screen. (parseQRPayload still accepts
+  // older, longer codes.)
   return JSON.stringify({
     v: 1,
     event: input.eventId,
-    title: input.title,
-    start: input.start,
-    end: input.end,
   });
 }
 

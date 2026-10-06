@@ -1,8 +1,9 @@
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
-import { FlatList, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useMemo, useState } from 'react';
+import { FlatList, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import Screen from '@/components/Screen';
+import StatusBadge from '@/components/StatusBadge';
 import { COLORS } from '@/constants/colors';
 import { useAuth } from '@/lib/auth';
 import {
@@ -20,34 +21,43 @@ export default function HistoryScreen() {
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [teacherEvents, setTeacherEvents] = useState<TeacherEventAttendance[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
 
   const userId = user?.id;
 
-  const loadHistory = useCallback(async () => {
-    if (!userId || !role) {
-      return; // wait until we know who and what the user is
-    }
-
-    setError(null);
-
-    try {
-      if (role === 'teacher') {
-        setTeacherEvents(await getTeacherEventAttendance(userId));
-        setRecords([]);
-      } else {
-        setRecords(await getAttendanceHistory(userId));
-        setTeacherEvents([]);
+  const loadHistory = useCallback(
+    async (isRefresh = false) => {
+      if (!userId || !role) {
+        return;
       }
-    } catch (loadError: unknown) {
-      const message = loadError instanceof Error ? loadError.message : String(loadError);
-      setError(message.includes("Could not find the table 'public.attendance'")
-        ? 'Attendance database setup is incomplete. Run supabase/schema.sql in the Supabase SQL Editor.'
-        : 'Unable to load attendance history. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  }, [userId, role]);
+
+      setError(null);
+      if (isRefresh) setRefreshing(true);
+
+      try {
+        if (role === 'teacher') {
+          setTeacherEvents(await getTeacherEventAttendance(userId));
+          setRecords([]);
+        } else {
+          setRecords(await getAttendanceHistory(userId));
+          setTeacherEvents([]);
+        }
+      } catch (loadError: unknown) {
+        const message = loadError instanceof Error ? loadError.message : String(loadError);
+        setError(
+          message.includes("Could not find the table 'public.attendance'")
+            ? 'Attendance database setup is incomplete. Run supabase/schema.sql in the Supabase SQL Editor.'
+            : 'Unable to load attendance history. Please try again.'
+        );
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [userId, role]
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -55,29 +65,64 @@ export default function HistoryScreen() {
     }, [loadHistory])
   );
 
+  const filteredTeacherEvents = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return teacherEvents;
+    return teacherEvents.filter(
+      (event) => event.title.toLowerCase().includes(q) || event.eventId.toLowerCase().includes(q)
+    );
+  }, [teacherEvents, query]);
+
+  const filteredRecords = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return records;
+    return records.filter(
+      (record) => record.eventTitle.toLowerCase().includes(q) || record.eventId.toLowerCase().includes(q)
+    );
+  }, [records, query]);
+
+  const showSearch = role === 'teacher' ? teacherEvents.length > 0 : records.length > 0;
+
   return (
     <Screen scroll={false}>
       <Text style={styles.title}>
         {role === 'teacher' ? 'Teacher Event Summary' : 'Attendance History'}
       </Text>
 
+      {showSearch && (
+        <TextInput
+          style={styles.search}
+          value={query}
+          onChangeText={setQuery}
+          placeholder="Search by title or code"
+          placeholderTextColor={COLORS.textSecondary}
+          autoCapitalize="none"
+        />
+      )}
+
       {loading ? (
         <Text style={styles.subtitle}>Loading records...</Text>
       ) : error ? (
         <Text style={styles.error}>{error}</Text>
       ) : role === 'teacher' ? (
-        teacherEvents.length === 0 ? (
-          <Text style={styles.subtitle}>No events created yet.</Text>
+        filteredTeacherEvents.length === 0 ? (
+          <Text style={styles.subtitle}>
+            {teacherEvents.length === 0 ? 'No events created yet.' : 'No events match your search.'}
+          </Text>
         ) : (
           <FlatList
-            data={teacherEvents}
+            data={filteredTeacherEvents}
             keyExtractor={(item) => item.eventId}
             style={styles.listView}
             contentContainerStyle={styles.list}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={() => loadHistory(true)} tintColor={COLORS.primary} />
+            }
             renderItem={({ item }) => (
               <View style={styles.card}>
                 <Text style={styles.eventTitle}>{item.title}</Text>
                 <Text style={styles.eventMeta}>{item.eventId}</Text>
+                <StatusBadge start={item.start} end={item.end} />
                 <Text style={styles.eventMeta}>{item.attendeeCount} attendee(s)</Text>
                 {item.attendees.map((attendee) => (
                   <Text key={`${attendee.studentId}-${attendee.scannedAt}`} style={styles.attendee}>
@@ -88,16 +133,21 @@ export default function HistoryScreen() {
             )}
           />
         )
-      ) : records.length === 0 ? (
+      ) : filteredRecords.length === 0 ? (
         <Text style={styles.subtitle}>
-          No records yet. Scan a QR code to register your attendance.
+          {records.length === 0
+            ? 'No records yet. Scan a QR code to register your attendance.'
+            : 'No records match your search.'}
         </Text>
       ) : (
         <FlatList
-          data={records}
+          data={filteredRecords}
           keyExtractor={(item) => String(item.id)}
           style={styles.listView}
           contentContainerStyle={styles.list}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={() => loadHistory(true)} tintColor={COLORS.primary} />
+          }
           renderItem={({ item }) => (
             <View style={styles.card}>
               <Text style={styles.eventTitle}>{item.eventTitle}</Text>
@@ -124,7 +174,18 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '600',
     color: COLORS.textPrimary,
-    marginBottom: 16,
+    marginBottom: 12,
+  },
+  search: {
+    backgroundColor: COLORS.card,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: COLORS.textPrimary,
+    marginBottom: 12,
   },
   subtitle: {
     fontSize: 14,

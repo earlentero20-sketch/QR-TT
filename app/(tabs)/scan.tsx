@@ -1,5 +1,6 @@
+import { useIsFocused } from '@react-navigation/native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import AppButton from '@/components/AppButton';
@@ -16,9 +17,29 @@ export default function ScanScreen() {
   const [lastData, setLastData] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
   // The camera can report the same QR several times before React re-renders,
   // which used to submit it twice ("recorded" instantly replaced by "already registered").
   const scanLock = useRef(false);
+
+  // Tabs keep every screen mounted. A CameraView that stays mounted in a hidden
+  // tab can come back with a frozen/black preview and a dead barcode analyzer,
+  // so the camera is only mounted while this tab is actually on screen.
+  const isFocused = useIsFocused();
+
+  // Start every visit with a fresh scanner. Without this, a previous result
+  // ("QR Code detected!") stays on screen and the camera keeps ignoring QR codes
+  // until "Scan Again" is pressed.
+  useEffect(() => {
+    if (isFocused) {
+      scanLock.current = false;
+      setScanned(false);
+      setLastData(null);
+      setMessage(null);
+      setSuccess(false);
+      setCameraError(null);
+    }
+  }, [isFocused]);
 
   if (role === 'teacher') {
     return (
@@ -40,14 +61,18 @@ export default function ScanScreen() {
       <View style={styles.container}>
         <Text style={styles.title}>Camera Permission Needed</Text>
         <Text style={styles.subtitle}>
-          We need access to your camera to scan QR codes.
+          {permission.canAskAgain
+            ? 'We need access to your camera to scan QR codes.'
+            : 'Camera access is turned off for this app. Enable it in your phone Settings > Apps > QR Attendance > Permissions.'}
         </Text>
-        <AppButton
-          theme="primary"
-          title="Grant Permission"
-          icon="camera"
-          onPress={requestPermission}
-        />
+        {permission.canAskAgain && (
+          <AppButton
+            theme="primary"
+            title="Grant Permission"
+            icon="camera"
+            onPress={requestPermission}
+          />
+        )}
       </View>
     );
   }
@@ -82,17 +107,29 @@ export default function ScanScreen() {
 
   return (
     <View style={styles.container}>
-      <CameraView
-        style={styles.camera}
-        facing="back"
-        barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
-        onBarcodeScanned={scanned ? undefined : handleBarcodeScanned}
-      />
+      {isFocused && (
+        <CameraView
+          style={styles.camera}
+          facing="back"
+          barcodeScannerSettings={BARCODE_SETTINGS}
+          onBarcodeScanned={scanned ? undefined : handleBarcodeScanned}
+          onMountError={(event) => {
+            console.warn('Camera failed to start:', event.message);
+            setCameraError(event.message);
+          }}
+        />
+      )}
 
       <View style={styles.overlay}>
         <Text style={styles.overlayText}>
           {scanned ? 'QR Code detected!' : 'Point your camera at a QR code'}
         </Text>
+
+        {cameraError && (
+          <Text style={[styles.scanResult, styles.error]}>
+            Camera error: {cameraError}
+          </Text>
+        )}
 
         {scanned && message && (
           <Text
@@ -118,6 +155,10 @@ export default function ScanScreen() {
     </View>
   );
 }
+
+// Module-level constant so the camera isn't handed a new settings object on
+// every render (that can make Android re-bind the camera and drop frames).
+const BARCODE_SETTINGS = { barcodeTypes: ['qr' as const] };
 
 const styles = StyleSheet.create({
   container: {

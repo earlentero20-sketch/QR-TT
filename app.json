@@ -37,6 +37,13 @@
         }
       ],
       "expo-sqlite",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow QR Attendance to use the camera to scan attendance QR codes.",
+          "recordAudioAndroid": false
+        }
+      ],
       "@react-native-community/datetimepicker",
       "expo-secure-store"
     ],

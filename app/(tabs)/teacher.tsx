@@ -20,6 +20,8 @@ import { COLORS } from '@/constants/colors';
 import { buildQRPayload } from '@/lib/qr';
 import { createEvent } from '@/lib/events';
 import { useRole } from '@/lib/profiles';
+import StatusBadge from '@/components/StatusBadge';
+
 
 // Send a real instant (UTC, with the trailing "Z"). The old helper sent local
 // wall-clock time with no offset, and the database (UTC) read "10:00" in
@@ -237,8 +239,9 @@ export default function TeacherScreen() {
           <Text style={styles.resultTitle}>
             Scan this QR code with the Scan tab:
           </Text>
+          <StatusBadge start={toISO(startDate)} end={toISO(endDate)} />
           <View style={styles.qrBox}>
-            <QRCode value={payload} size={200} />
+            <QRCode value={payload} size={240} />
           </View>
           <Text style={styles.payloadText}>{payload}</Text>
         </View>
@@ -372,7 +375,7 @@ const styles = StyleSheet.create({
   },
   qrBox: {
     backgroundColor: '#FFFFFF',
-    padding: 12,
+    padding: 24,
     borderRadius: 10,
     marginBottom: 12,
   },
