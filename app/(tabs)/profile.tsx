@@ -44,7 +44,8 @@ export default function ProfileScreen() {
     }
   };
 
-  const roleLabel = role === 'teacher' ? 'Teacher' : role === 'student' ? 'Student' : '...';
+  const roleLabel =
+    role === 'admin' ? 'Administrator' : role === 'teacher' ? 'Teacher' : role === 'student' ? 'Student' : '...';
 
   return (
     <Screen>

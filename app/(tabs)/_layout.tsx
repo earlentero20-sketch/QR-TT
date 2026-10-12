@@ -7,18 +7,14 @@ import { useRole } from '@/lib/profiles';
 export default function TabsLayout() {
   const { role } = useRole();
   const isTeacher = role === 'teacher';
+  const isAdmin = role === 'admin';
 
-  // Every tab is ALWAYS declared. Leaving a <Tabs.Screen> out doesn't hide it
-  // (Expo Router auto-registers every file), it just loses its icon.
-  // `href: null` is the supported way to hide a tab.
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: COLORS.primary,
         tabBarInactiveTintColor: COLORS.textSecondary,
-        // No fixed height/padding: the tab bar adds the bottom safe-area
-        // inset itself so Android's nav bar doesn't cover it.
         tabBarStyle: {
           backgroundColor: COLORS.card,
           borderTopWidth: 0,
@@ -38,7 +34,7 @@ export default function TabsLayout() {
         name="scan"
         options={{
           title: 'Scan',
-          href: isTeacher ? null : undefined,
+          href: isTeacher || isAdmin ? null : undefined,
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? 'scan' : 'scan-outline'} color={color} size={24} />
           ),
@@ -48,6 +44,7 @@ export default function TabsLayout() {
         name="history"
         options={{
           title: 'History',
+          href: isAdmin ? null : undefined,
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? 'time' : 'time-outline'} color={color} size={24} />
           ),
@@ -60,6 +57,16 @@ export default function TabsLayout() {
           href: isTeacher ? undefined : null,
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? 'clipboard' : 'clipboard-outline'} color={color} size={24} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="admin"
+        options={{
+          title: 'Admin',
+          href: isAdmin ? undefined : null,
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'shield-checkmark' : 'shield-checkmark-outline'} color={color} size={24} />
           ),
         }}
       />

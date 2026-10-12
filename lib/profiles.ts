@@ -3,10 +3,11 @@ import { useEffect, useSyncExternalStore } from 'react';
 import { useAuth } from './auth';
 import { supabase } from './supabase';
 
-export type UserRole = 'student' | 'teacher';
+export type UserRole = 'student' | 'teacher' | 'admin';
 
 export function normalizeRole(role?: string | null): UserRole {
-  return role === 'teacher' ? 'teacher' : 'student';
+  if (role === 'teacher' || role === 'admin') return role;
+  return 'student';
 }
 
 export function isTeacherRole(role?: string | null): boolean {
